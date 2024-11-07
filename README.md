@@ -1,3 +1,27 @@
+# Hackathon Notes
+
+Used this docker command
+```
+docker run \
+    -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+    -v $HOME/jordan_hackin/computer_use_demo/container/.cache:/home/computeruse/.cache \
+    -v $HOME/jordan_hackin/computer_use_demo/container/.mozilla:/home/computeruse/.mozilla \
+    -v $HOME/jordan_hackin/computer_use_demo/anthropic-quickstarts/computer-use-demo/anthropic_config:/home/computeruse/.anthropic \
+    -v $HOME/jordan_hackin/computer_use_demo/anthropic-quickstarts/computer-use-demo/computer_use_demo:/home/computeruse/computer_use_demo \
+    -v $HOME/jordan_hackin/computer_use_demo/anthropic-quickstarts/computer-use-demo/image:/home/computeruse/custom_image \
+    -p 5900:5900 \
+    -p 8501:8501 \
+    -p 6080:6080 \
+    -p 8080:8080 \
+    --entrypoint "custom_image/entrypoint.sh" \
+    -it ghcr.io/anthropics/anthropic-quickstarts:computer-use-demo-latest
+
+```
+
+Mouse highlighter: vokoscreen
+Slides: https://docs.google.com/presentation/d/1UmBM9XTN9kzr9fvSJJi6i82yCx44mK3ryXoUbjnHwqs/edit#slide=id.g3127d6e3999_0_139
+
+
 # Anthropic Quickstarts
 
 Anthropic Quickstarts is a collection of projects designed to help developers quickly get started with building  applications using the Anthropic API. Each quickstart provides a foundation that you can easily build upon and customize for your specific needs.
