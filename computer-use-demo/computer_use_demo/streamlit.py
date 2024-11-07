@@ -12,6 +12,7 @@ from enum import StrEnum
 from functools import partial
 from pathlib import PosixPath
 from typing import cast
+import logging
 
 import httpx
 import streamlit as st
@@ -47,6 +48,7 @@ STREAMLIT_STYLE = """
 
 WARNING_TEXT = "⚠️ Security Alert: Never provide access to sensitive accounts or data, as malicious web content can hijack Claude's behavior"
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Sender(StrEnum):
     USER = "user"
@@ -78,8 +80,8 @@ def setup_state():
         st.session_state.tools = {}
     if "only_n_most_recent_images" not in st.session_state:
         st.session_state.only_n_most_recent_images = 10
-    if "custom_system_prompt" not in st.session_state:
-        st.session_state.custom_system_prompt = load_from_storage("system_prompt") or ""
+    # if "custom_system_prompt" not in st.session_state:
+    #     st.session_state.custom_system_prompt = load_from_storage("system_prompt") or ""
     if "hide_images" not in st.session_state:
         st.session_state.hide_images = False
 
@@ -134,14 +136,14 @@ async def main():
             key="only_n_most_recent_images",
             help="To decrease the total tokens sent, remove older screenshots from the conversation",
         )
-        st.text_area(
-            "Custom System Prompt Suffix",
-            key="custom_system_prompt",
-            help="Additional instructions to append to the system prompt. see computer_use_demo/loop.py for the base system prompt.",
-            on_change=lambda: save_to_storage(
-                "system_prompt", st.session_state.custom_system_prompt
-            ),
-        )
+        # st.text_area(
+        #     "Custom System Prompt Suffix",
+        #     key="custom_system_prompt",
+        #     help="Additional instructions to append to the system prompt. see computer_use_demo/loop.py for the base system prompt.",
+        #     on_change=lambda: save_to_storage(
+        #         "system_prompt", st.session_state.custom_system_prompt
+        #     ),
+        # )
         st.checkbox("Hide screenshots", key="hide_images")
 
         if st.button("Reset", type="primary"):
@@ -212,7 +214,7 @@ async def main():
         with st.spinner("Running Agent..."):
             # run the agent sampling loop with the newest message
             st.session_state.messages = await sampling_loop(
-                system_prompt_suffix=st.session_state.custom_system_prompt,
+                system_prompt_suffix=load_from_storage("system_prompt") or "",
                 model=st.session_state.model,
                 provider=st.session_state.provider,
                 messages=st.session_state.messages,
@@ -226,6 +228,7 @@ async def main():
                     response_state=st.session_state.responses,
                 ),
                 api_key=st.session_state.api_key,
+                do_print=logging.info,
                 only_n_most_recent_images=st.session_state.only_n_most_recent_images,
             )
 
@@ -371,8 +374,11 @@ def _render_message(
         elif isinstance(message, dict):
             if message["type"] == "text":
                 st.write(message["text"])
+            elif message["type"] == "image":
+                st.image(base64.b64decode(message["source"]["data"]))
             elif message["type"] == "tool_use":
                 st.code(f'Tool Use: {message["name"]}\nInput: {message["input"]}')
+
             else:
                 # only expected return types are text and tool_use
                 raise Exception(f'Unexpected response type {message["type"]}')

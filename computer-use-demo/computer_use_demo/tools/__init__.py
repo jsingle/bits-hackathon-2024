@@ -11,4 +11,5 @@ __ALL__ = [
     EditTool,
     ToolCollection,
     ToolResult,
+    # CrossRefTool,
 ]

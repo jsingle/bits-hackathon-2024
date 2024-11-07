@@ -1,7 +1,7 @@
 """
 Agentic sampling loop that calls the Anthropic API and local implementation of anthropic-defined computer use tools.
 """
-
+import json
 import platform
 from collections.abc import Callable
 from datetime import datetime
@@ -53,22 +53,25 @@ PROVIDER_TO_DEFAULT_MODEL_NAME: dict[APIProvider, str] = {
 # We encourage modifying this system prompt to ensure the model has context for the
 # environment it is running in, and to provide any additional information that may be
 # helpful for the task at hand.
-SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
+SYSTEM_PROMPT = f"""
+<SYSTEM_CAPABILITY>
+VERY IMPORTANT: WHEN SELECTING COORDINATES FOR THE MOUSE, MAKE SURE YOU ARE REFERENCING THE MOST RECENT SCREENSHOT ONLY
+
+Note that your mouse pointer may have a yellow circle highlight it, so that humans can follow it.
+
 * You are utilising an Ubuntu virtual machine using {platform.machine()} architecture with internet access.
-* You can feel free to install Ubuntu applications with your bash tool. Use curl instead of wget.
-* To open firefox, please just click on the firefox icon.  Note, firefox-esr is what is installed on your system.
-* Using bash tool you can start GUI applications, but you need to set export DISPLAY=:1 and use a subshell. For example "(DISPLAY=:1 xterm &)". GUI apps run with bash tool will appear within your desktop environment, but they may take some time to appear. Take a screenshot to confirm it did.
-* When using your bash tool with commands that are expected to output very large quantities of text, redirect into a tmp file and use str_replace_editor or `grep -n -B <lines before> -A <lines after> <query> <filename>` to confirm output.
+* You are an assistant who is using the Datadog web application. Do not take any actions outside of this application (which is used via firefox)
+* If you do not see the datadog web application, you must ensure Firefox is open, then navigate to dd.datad0g.com to re-open it
+* You may open new tabs as needed, but do not switch applications out of Firefox
+* Firefox should already be open but if you need to open firefox, please just click on the firefox icon. Note, firefox-esr is what is installed on your system.
+* If you're not sure what you're being asked to do, first take a screenshot, it might make more sense after that
+* YOU MUST NOT respond saying "you need more information" unless you've already taken a screenshot to try gathering info
 * When viewing a page it can be helpful to zoom out so that you can see everything on the page.  Either that, or make sure you scroll down to see everything before deciding something isn't available.
 * When using your computer function calls, they take a while to run and send back to you.  Where possible/feasible, try to chain multiple of these calls all into one function calls request.
 * The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
-</SYSTEM_CAPABILITY>
-
-<IMPORTANT>
 * When using Firefox, if a startup wizard appears, IGNORE IT.  Do not even click "skip this step".  Instead, click on the address bar where it says "Search or enter address", and enter the appropriate search term or URL there.
-* If the item you are looking at is a pdf, if after taking a single screenshot of the pdf it seems that you want to read the entire document instead of trying to continue to read the pdf from your screenshots + navigation, determine the URL, use curl to download the pdf, install and use pdftotext to convert it to a text file, and then read that text file directly with your StrReplaceEditTool.
-</IMPORTANT>"""
-
+</SYSTEM_CAPABILITY>
+"""
 
 async def sampling_loop(
     *,
@@ -82,6 +85,7 @@ async def sampling_loop(
         [httpx.Request, httpx.Response | object | None, Exception | None], None
     ],
     api_key: str,
+    do_print,
     only_n_most_recent_images: int | None = None,
     max_tokens: int = 4096,
 ):
@@ -90,12 +94,16 @@ async def sampling_loop(
     """
     tool_collection = ToolCollection(
         ComputerTool(),
-        BashTool(),
-        EditTool(),
+        # CrossRefTool(),
+        # BashTool(),
+        # EditTool(),
     )
+    sys_prompt_text = f"{SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}"
+    do_print("Debug: Using system prompt:")
+    do_print(sys_prompt_text)
     system = BetaTextBlockParam(
         type="text",
-        text=f"{SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}",
+        text=sys_prompt_text,
     )
 
     while True:
@@ -112,7 +120,7 @@ async def sampling_loop(
 
         if enable_prompt_caching:
             betas.append(PROMPT_CACHING_BETA_FLAG)
-            _inject_prompt_caching(messages)
+            # _inject_prompt_caching(messages)
             # Is it ever worth it to bust the cache with prompt caching?
             image_truncation_threshold = 50
             system["cache_control"] = {"type": "ephemeral"}
@@ -158,24 +166,145 @@ async def sampling_loop(
             }
         )
 
+        inputs_this_loop = []
         tool_result_content: list[BetaToolResultBlockParam] = []
         for content_block in response_params:
             output_callback(content_block)
             if content_block["type"] == "tool_use":
+                tool_input = cast(dict[str, Any], content_block["input"])
                 result = await tool_collection.run(
                     name=content_block["name"],
-                    tool_input=cast(dict[str, Any], content_block["input"]),
+                    tool_input=tool_input,
                 )
                 tool_result_content.append(
                     _make_api_tool_result(result, content_block["id"])
                 )
                 tool_output_callback(result, content_block["id"])
+                inputs_this_loop.append(tool_input)
 
         if not tool_result_content:
             return messages
 
         messages.append({"content": tool_result_content, "role": "user"})
 
+        do_print("Loop Tool Inputs")
+        do_print(inputs_this_loop)
+        for in_args in inputs_this_loop:
+            action = in_args.get("action")
+            if action == "key" or action == "type" or action == "left_click":
+                do_print("DO CROSS REF")
+                messages = await do_cross_reference(client, model, messages, api_response_callback, output_callback, tool_collection, betas)
+                break
+
+# Other try
+# ESSENTIAL_REASONING_STEPS
+# Always double check EACH STEP that you perform, to ensure that the changes you made have the intended effect, and that the UI is reflecting your changes.
+# Always return a brief chain of thought with your message.
+# For EACH "click" action AND EACH "key" action AND EACH "type" action that you request, YOU MUST include a message describing the change you expect to see in the UI.
+# When you're sent a screenshot after taking an action, YOU MUST check the screenshot against your previous expectations, to see if you need to try a different approach.
+
+
+cross_reference_system_prompt = """
+You have requested some number of "computer use" actions, which include mouse movements, mouse clicks, typing, and keystrokes.
+You have requested these in order to accomplish some goal in the computer's UI. 
+Your job is now to return 2 statements:
+* What was the intended change in the UI as a result of the most recent actions?
+* What actually happened according to the most recent screenshot - is that change reflected, or did something go wrong?
+
+Please return in the following format:
+
+Intended Change: <your explanation here>
+Actual Result: <your detailed description of the UI>
+
+Example 1:
+Intended Change: I attempted to click on the button to edit a widget, which I expect would open some new edit view in the UI
+Actual Result: The UI now shows a modal with an "Edit Widget" title, several fields that look modifiable, and a "Save" button, so it seems that this was successful
+
+Example 2:
+Intended Change: I tried to enter the text "CPU Usage by Pod" into the title field, so I expect that text to now be visible inside the title field
+Actual Result: This text is not visible in the title field, which looks the same as before, so this action was not successful
+
+DO NOT repeat what actions you've already tried. YOU MUST NOT repeat "Requested this action..." messages. Just reflect on what happened in the UI.
+"""
+
+async def do_cross_reference(client, model, messages, api_response_callback, output_callback, tool_collection, betas):
+    system = BetaTextBlockParam(
+        type="text",
+        text=cross_reference_system_prompt,
+    )
+    transformed_messages = [remove_tool(msg) for msg in messages]
+    try:
+        raw_response = client.beta.messages.with_raw_response.create(
+            max_tokens=4096,
+            messages=transformed_messages,
+            model=model,
+            system=[system],
+            # tools=tool_collection.to_params(),
+            # betas=betas,
+        )
+    except (APIStatusError, APIResponseValidationError) as e:
+        api_response_callback(e.request, e.response, e)
+        return messages
+    except APIError as e:
+        api_response_callback(e.request, e.body, e)
+        return messages
+    api_response_callback(
+        raw_response.http_response.request, raw_response.http_response, None
+    )
+
+    response = raw_response.parse()
+
+    response_params = _response_to_params(response)
+    for content_block in response_params:
+        output_callback(content_block)
+    messages.append(
+        {
+            "role": "assistant",
+            "content": response_params,
+        }
+    )
+    sc = await ComputerTool()(action="screenshot")
+    messages.append(
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Use this analysis along with this updated screenshot to decide on next actions"
+                },
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": sc.base64_image,
+                    },
+                }
+            ],
+        }
+    )
+    return messages
+
+def remove_tool(message: BetaMessageParam) -> BetaMessageParam:
+    if isinstance(message["content"], str):
+        return message
+    elif isinstance(message["content"], list):
+        new = {"role": message["role"]}
+        new["content"] = [tool_result_to_standard_content(content) for content in message["content"]]
+        return new
+    else:
+        return message
+
+def tool_result_to_standard_content(content):
+    if isinstance(content, dict) and content["type"] == "tool_result":
+        return content["content"][0]
+    elif isinstance(content, dict) and content["type"] == "tool_use":
+        return {
+            "type": "text",
+            "text": f"""Requested this action to accomplish my goal: {json.dumps(content["input"])}"""
+        }
+    else:
+        return content
 
 def _maybe_filter_to_n_most_recent_images(
     messages: list[BetaMessageParam],

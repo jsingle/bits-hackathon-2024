@@ -1,0 +1,74 @@
+IMPORTANT_DATADOG_INSTRUCTIONS
+When opening firefox for the first time, choose the option to restore a previous session if possible
+
+YOU MUST NOT edit the URL of the web browser directly. You must navigate within the Datadog web app via its links and search features
+To repeat, YOU MUST NOT USE the browser search bar. Use the Datadog UI
+
+These are general guidelines for interacting with Datadog:
+Time Selection
+* When selecting a time window, use the dropdown on the upper-right. If no dropdown is present, you're not in the right view to select a time window.
+* To select a new time window, YOU MUST NOT click the "pin"/"pushpin"/"thumbtack" icon in the dropdown
+* To click on the selector, YOU MUST click on the LEFT part of the dropdown where it says "Past 1 Hour" / "Past 1 Day" etc
+* After tapping the dropdown, you can type the desired timerange, e.g. "past 1 hour", "past 30 minutes", or "past 1 day", then use "key": "Return"
+
+Creating Dashboard Widgets
+* After clicking "Add Widgets", do not enter text immediately. Instead click the "Timeseries" button on the right
+* Inside the "Graph your data section"
+    * The first dropdown on the left is to select the category that you're graphing. You should always leave "Metrics" selected.
+    * The 2nd dropdown is to select the org. Never click this.
+    * The 3rd field is to select the metric name. You can click this field, and then if you have an EXACT metric name, type it, then use "key":"Return".
+    * Alternatively, select this field, and type a search term, without using "Return", for suggestions.
+    * The field to the right of "from" is for filters. You can click this field, type an EXACT filter such as "service:my-service", and then use "key":"Return".
+    * Alternatively, select this field and type the name of a filter key, without using "Return", for suggestions.
+    * The field which says "avg by"/"max by"/"p99 by" etc can be selected, to change the part of the distribution being viewed
+    * The field after this distribution field is the breakdown field - you can type the name of a key to break down the metric by, for example if you want to see a different timeseries per method
+    * The field which just says "as..." on the far right, next to the "x", is just a label. There's no need to modify this
+* To give a widget a title, move your mouse to the center of the screen, then scroll down, then select the title field and enter title text
+    * You should give widgets titles before creating them, and modify their titles if modifying them significantly
+
+To scroll, use the "key":"Page_Down" and "key":"Page_Up" actions. You MUST FIRST move the mouse to the center of the screen before scrolling.
+You may need to do this multiple times, since the view will only scroll incrementally
+
+Here are some instructions about tasks you may be asked to perform:
+* Finish creating a widget - if a "p99 by" distribution is selected:
+    * Click "add new query" 3 times, and select "p90", "avg", and "max" for the 3 new queries. You MUST select the "+ Add Query" button 3 times, for EACH new query. You will need a NEW cursor location each time, since the button will move down
+    * When the dropdown showing "avg by" "max by" etc  is showing, you can type the value you want to select, e.g. "avg" or "p90", and then "key":"Return" to select it, as an alternative to clicking
+    * The end state MUST list 4 queries, one with each distribution, before you're done
+    * If you're having trouble clicking the right thing, try changing your cursor to a different position. DOUBLE CHECK that it's a different coordinate than before
+* Finish creating a widget - if a system metric (cpu/mem) is selected, add a "pod_name" breakdown.
+* Add a template variable to a dashboard
+    * First click "Add Variable" at the top of a dashboard. Enter the tag, DO NOT change the "variable name" field from the default
+    * If you need to set a default value, first select "configure dropdown values". Then hit "save"
+    * Then, for each widget in the dashboard, hover your mouse over the top of the widget. A pencil/edit icon should appear, click on each widget
+    * If you see "Explore" on the upper left of the widget view, you need to click there to be able to toggle to the "Edit" view
+    * Inside the filters for each widget, enter "$<tag>", where instead of <tag> you enter the name of the variable. E.g. if your variable is "service", enter "$service" in EACH metric. Then hit save
+    * Edit the widget's title, to include $<tag>, for example $service, at the end of the title
+    * When you're done, double check that you've modified each widget by checking the widget titles; each should end with "<tag>:<value>" e.g. "service:<value>"
+* Investigating a monitor alert
+    * Click any links provided in the "Message" field of the monitor alert. DO NOT scroll down when viewing the monitor
+    * YOU MUST investigate a dashboard first if one is linked, before following other links
+    * YOU MUST click the browser back button before trying a different link
+    * DO NOT declare an incident, or make any changes. Your job is just to gather information
+    * Your should provide a final summary of your findings after checking the links in the monitor message
+    * NEVER click "Try The New Page"
+* Investigating logs (e.g. after starting from a monitor investigation)
+    * Wait for the logs to load
+    * You may need to scroll down to see all the content
+    * Use the browser to go Back to the monitor when you're done. You may need to go Back more than once
+* Investigating dashboards (e.g. after starting from a monitor investigation)
+    * Wait for the widgets in the dashboard to load
+    * You may need to scroll down to see all the content
+    * Use the browser to go Back to the monitor when you're done. You may need to go back more than once
+* Investigating traces (e.g. after starting from a monitor investigation)
+    * Wait for the page to load - no spinners should be visible
+    * You may need to scroll down to see all the content
+    * If you see any errors in the list view, click on one of them to get more details
+    * Use the browser to go Back to the monitor when you're done. You may need to go back more than once
+* Searching for dashboards, monitors etc
+    * If you do not see a Datadog search bar within the web app, use the navigation menu to try to find the relevant page first
+    * Click inside the Datadog search bar (NOT the browser search bar), enter text, and use "key":"Return". Wait for it to load
+    * If you need to try a different search, you MUST click the "X" on the right of the search bar before entering new text
+    * YOU MUST IGNORE any monitors you see with "hotdog" in the name
+
+Some pages take time to load. If it looks like a page is loading after an action, you should take another screenshot before navigating away, to see if it loads.
+Repeat this 2 times while a page is loading to double check, before navigating away.

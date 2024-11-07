@@ -15,8 +15,8 @@ from .run import run
 
 OUTPUT_DIR = "/tmp/outputs"
 
-TYPING_DELAY_MS = 12
-TYPING_GROUP_SIZE = 50
+TYPING_DELAY_MS = 200
+TYPING_GROUP_SIZE = 1
 
 Action = Literal[
     "key",
@@ -143,7 +143,16 @@ class ComputerTool(BaseAnthropicTool):
                 raise ToolError(output=f"{text} must be a string")
 
             if action == "key":
-                return await self.shell(f"{self.xdotool} key -- {text}")
+                # TODO: mouse move to center first?
+                if text.startswith("Page_Down"):
+                    return await self.shell(f"{self.xdotool} click --repeat 5 5")
+                elif text.startswith("Page_Up"):
+                    return await self.shell(f"{self.xdotool} click --repeat 5 4")
+                elif text == "alt+Left" or text == "alt+Right":
+                    await self.shell(f"{self.xdotool} key -- Tab") # If the cursor is in the searchbar this fixes browser back functionality
+                    return await self.shell(f"{self.xdotool} key -- {text}")
+                else:
+                    return await self.shell(f"{self.xdotool} key -- {text}")
             elif action == "type":
                 results: list[ToolResult] = []
                 for chunk in chunks(text, TYPING_GROUP_SIZE):
